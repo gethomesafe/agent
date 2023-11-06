@@ -1,5 +1,5 @@
 {
-    "name": "bynicolas/agent",
+    "name": "jenssegers/agent",
     "description": "Desktop/mobile user agent parser with support for Laravel, based on Mobiledetect",
     "keywords": ["laravel", "useragent", "agent", "user agent", "browser", "platform", "mobile", "desktop"],
     "homepage": "https://github.com/jenssegers/agent",
