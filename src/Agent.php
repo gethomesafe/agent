@@ -76,6 +76,9 @@ class Agent extends MobileDetect
         'Coc Coc' => 'coc_coc_browser/[VER]',
     ];
 
+    public const VERSION_TYPE_STRING = 'text';
+    public const VERSION_TYPE_FLOAT = 'float';
+
     /**
      * @var CrawlerDetect
      */
@@ -170,19 +173,48 @@ class Agent extends MobileDetect
      */
     protected function findDetectionRulesAgainstUA(array $rules, $userAgent = null)
     {
+        $ua = $userAgent ?? $this->getUserAgent() ?? '';
+
         // Loop given rules
         foreach ($rules as $key => $regex) {
             if (empty($regex)) {
                 continue;
             }
 
+            // v4 match() only accepts strings; join array patterns
+            if (is_array($regex)) {
+                $regex = implode('|', $regex);
+            }
+
             // Check match
-            if ($this->match($regex, $userAgent)) {
+            if ($this->match($regex, $ua)) {
                 return $key ?: reset($this->matchesArray);
             }
         }
 
         return false;
+    }
+
+    /**
+     * Override is() to also check Agent's augmented rule sets (browsers, desktop OS, desktop devices).
+     */
+    public function is(string $key): bool
+    {
+        $allRules = array_merge(
+            static::getBrowsers(),
+            static::getPlatforms(),
+            static::getDesktopDevices(),
+        );
+
+        if (isset($allRules[$key])) {
+            $regex = is_array($allRules[$key]) ? implode('|', $allRules[$key]) : $allRules[$key];
+            $ua = $this->getUserAgent() ?? '';
+            if ($ua !== '' && $this->match($regex, $ua)) {
+                return true;
+            }
+        }
+
+        return parent::is($key);
     }
 
     /**
@@ -231,13 +263,20 @@ class Agent extends MobileDetect
     {
         // Check specifically for cloudfront headers if the useragent === 'Amazon CloudFront'
         if ($this->getUserAgent() === 'Amazon CloudFront') {
-            $cfHeaders = $this->getCfHeaders();
-            if(array_key_exists('HTTP_CLOUDFRONT_IS_DESKTOP_VIEWER', $cfHeaders)) {
+            $cfHeaders = $this->getCloudFrontHttpHeaders();
+            if (array_key_exists('HTTP_CLOUDFRONT_IS_DESKTOP_VIEWER', $cfHeaders)) {
                 return $cfHeaders['HTTP_CLOUDFRONT_IS_DESKTOP_VIEWER'] === 'true';
             }
         }
 
-        return !$this->isMobile($userAgent, $httpHeaders) && !$this->isTablet($userAgent, $httpHeaders) && !$this->isRobot($userAgent);
+        if ($userAgent !== null) {
+            $this->setUserAgent($userAgent);
+        }
+        if ($httpHeaders !== null) {
+            $this->setHttpHeaders($httpHeaders);
+        }
+
+        return !$this->isMobile() && !$this->isTablet() && !$this->isRobot();
     }
 
     /**
@@ -248,7 +287,14 @@ class Agent extends MobileDetect
      */
     public function isPhone($userAgent = null, $httpHeaders = null)
     {
-        return $this->isMobile($userAgent, $httpHeaders) && !$this->isTablet($userAgent, $httpHeaders);
+        if ($userAgent !== null) {
+            $this->setUserAgent($userAgent);
+        }
+        if ($httpHeaders !== null) {
+            $this->setHttpHeaders($httpHeaders);
+        }
+
+        return $this->isMobile() && !$this->isTablet();
     }
 
     /**
@@ -296,7 +342,7 @@ class Agent extends MobileDetect
         return "other";
     }
 
-    public function version($propertyName, $type = self::VERSION_TYPE_STRING)
+    public function version(string $propertyName, string $type = self::VERSION_TYPE_STRING): string|float|bool
     {
         if (empty($propertyName)) {
             return false;
@@ -321,7 +367,7 @@ class Agent extends MobileDetect
                     $propertyMatchString = implode("|", $propertyMatchString);
                 }
 
-                $propertyPattern = str_replace('[VER]', self::VER, $propertyMatchString);
+                $propertyPattern = str_replace('[VER]', static::VERSION_REGEX, $propertyMatchString);
 
                 // Identify and extract the version.
                 preg_match(sprintf('#%s#is', $propertyPattern), $this->userAgent, $match);
