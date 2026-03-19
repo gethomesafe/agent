@@ -197,9 +197,16 @@ class Agent extends MobileDetect
 
     /**
      * Override is() to also check Agent's augmented rule sets (browsers, desktop OS, desktop devices).
+     * Returns false when no UA is set, preserving v3 behaviour (v4 parent throws an exception).
      */
     public function is(string $key): bool
     {
+        $ua = $this->getUserAgent() ?? '';
+
+        if ($ua === '') {
+            return false;
+        }
+
         $allRules = array_merge(
             static::getBrowsers(),
             static::getPlatforms(),
@@ -208,13 +215,36 @@ class Agent extends MobileDetect
 
         if (isset($allRules[$key])) {
             $regex = is_array($allRules[$key]) ? implode('|', $allRules[$key]) : $allRules[$key];
-            $ua = $this->getUserAgent() ?? '';
-            if ($ua !== '' && $this->match($regex, $ua)) {
+            if ($this->match($regex, $ua)) {
                 return true;
             }
         }
 
         return parent::is($key);
+    }
+
+    /**
+     * Returns false when no UA is set, preserving v3 behaviour (v4 parent throws an exception).
+     */
+    public function isMobile(): bool
+    {
+        if ($this->getUserAgent() === null) {
+            return false;
+        }
+
+        return parent::isMobile();
+    }
+
+    /**
+     * Returns false when no UA is set, preserving v3 behaviour (v4 parent throws an exception).
+     */
+    public function isTablet(): bool
+    {
+        if ($this->getUserAgent() === null) {
+            return false;
+        }
+
+        return parent::isTablet();
     }
 
     /**
@@ -333,7 +363,7 @@ class Agent extends MobileDetect
             return "desktop";
         } elseif ($this->isPhone($userAgent, $httpHeaders)) {
             return "phone";
-        } elseif ($this->isTablet($userAgent, $httpHeaders)) {
+        } elseif ($this->isTablet()) {
             return "tablet";
         } elseif ($this->isRobot($userAgent)) {
             return "robot";
@@ -344,7 +374,7 @@ class Agent extends MobileDetect
 
     public function version(string $propertyName, string $type = self::VERSION_TYPE_STRING): string|float|bool
     {
-        if (empty($propertyName)) {
+        if (empty($propertyName) || $this->userAgent === null) {
             return false;
         }
 
