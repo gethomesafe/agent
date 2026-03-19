@@ -20,8 +20,9 @@ class AgentServiceProvider extends ServiceProvider
     {
         $this->app->singleton('agent', function ($app) {
             $agent = new Agent();
-            $agent->setHttpHeaders($app['request']->server());
-            $agent->setUserAgent($app['request']->userAgent());
+            $agent->setHttpHeaders($app['request']->server() ?? []);
+            $agent->setUserAgent($app['request']->userAgent() ?? '');
+            
             return $agent;
         });
 
